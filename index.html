@@ -2862,7 +2862,7 @@ body.drag-in-progress * {
 
     // ===== DOM Helpers =====
     const $ = sel => document.querySelector(sel);
-    const $ = sel => document.querySelectorAll(sel);
+    const $$ = sel => document.querySelectorAll(sel);
 
     function el(tag, attrs = {}, children = []) {
         const e = document.createElement(tag);
@@ -3427,7 +3427,7 @@ body.drag-in-progress * {
                 onClick: () => {
                     switchView('categories');
                     setTimeout(() => {
-                        const sections = $('.category-section');
+                        const sections = $$('.category-section');
                         const idx = state.categories.findIndex(c=>c.id===cat.id);
                         if (sections[idx]) sections[idx].scrollIntoView({behavior:'smooth'});
                     }, 50);
@@ -3450,8 +3450,8 @@ body.drag-in-progress * {
 
     function switchView(view) {
         currentView = view;
-        $('.view').forEach(v => v.classList.remove('active'));
-        $('.nav-item').forEach(n => n.classList.remove('active'));
+        $$('.view').forEach(v => v.classList.remove('active'));
+        $$('.nav-item').forEach(n => n.classList.remove('active'));
         $(`#${view}-view`).classList.add('active');
         $(`.nav-item[data-view="${view}"]`).classList.add('active');
         const titles = {weekly:'ウィークリー',calendar:'カレンダー',categories:'カテゴリー',overdue:'未達成タスク'};
@@ -3564,7 +3564,7 @@ body.drag-in-progress * {
         $('#task-form').reset();
         $('#task-fields').style.display = '';
         $('#event-fields').style.display = 'none';
-        $('.type-option').forEach(o => o.classList.remove('active'));
+        $$('.type-option').forEach(o => o.classList.remove('active'));
         $('.type-option[data-type="task"]').classList.add('active');
         $('#delete-task-btn').style.display = 'none';
         renderSelectedCategories();
@@ -3631,7 +3631,7 @@ body.drag-in-progress * {
 
     function setItemType(type) {
         currentItemType = type;
-        $('.type-option').forEach(o => o.classList.remove('active'));
+        $$('.type-option').forEach(o => o.classList.remove('active'));
         $(`.type-option[data-type="${type}"]`).classList.add('active');
         $('#task-fields').style.display = type === 'task' ? '' : 'none';
         $('#event-fields').style.display = type === 'event' ? '' : 'none';
@@ -3657,7 +3657,7 @@ body.drag-in-progress * {
         $('#category-modal-title').textContent = 'カテゴリー追加';
         $('#category-submit-btn').textContent = '追加';
         $('#category-form').reset();
-        $('.color-option').forEach(o => o.classList.remove('selected'));
+        $$('.color-option').forEach(o => o.classList.remove('selected'));
         $('.color-option').classList.add('selected');
         $('#category-modal').classList.add('active');
         setTimeout(() => $('#category-name').focus(), 80);
@@ -3670,7 +3670,7 @@ body.drag-in-progress * {
         $('#category-modal-title').textContent = 'カテゴリー編集';
         $('#category-submit-btn').textContent = '保存';
         $('#category-name').value = cat.name;
-        $('.color-option').forEach(o => {
+        $$('.color-option').forEach(o => {
             o.classList.toggle('selected', o.dataset.color === cat.color);
         });
         $('#category-modal').classList.add('active');
@@ -4086,7 +4086,7 @@ body.drag-in-progress * {
         requestNotificationPermission();
 
         // Nav
-        $('.nav-item').forEach(item => {
+        $$('.nav-item').forEach(item => {
             item.addEventListener('click', () => switchView(item.dataset.view));
         });
 
@@ -4129,7 +4129,7 @@ body.drag-in-progress * {
         $('#add-category-btn').addEventListener('click', openAddCategory);
 
         // Type selector in modal
-        $('.type-option').forEach(opt => {
+        $$('.type-option').forEach(opt => {
             opt.addEventListener('click', () => setItemType(opt.dataset.type));
         });
 
@@ -4187,7 +4187,7 @@ body.drag-in-progress * {
         $('#move-modal-cancel').addEventListener('click', () => closeModal('#move-modal'));
 
         // Backdrop click
-        $('.modal').forEach(modal => {
+        $$('.modal').forEach(modal => {
             modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
         });
 
@@ -4235,9 +4235,9 @@ body.drag-in-progress * {
         });
 
         // Color picker
-        $('.color-option').forEach(opt => {
+        $$('.color-option').forEach(opt => {
             opt.addEventListener('click', () => {
-                $('.color-option').forEach(o => o.classList.remove('selected'));
+                $$('.color-option').forEach(o => o.classList.remove('selected'));
                 opt.classList.add('selected');
             });
         });
@@ -4258,7 +4258,7 @@ body.drag-in-progress * {
 
         // Keyboard
         document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') $('.modal.active').forEach(m => m.classList.remove('active'));
+            if (e.key === 'Escape') $$('.modal.active').forEach(m => m.classList.remove('active'));
             if ((e.ctrlKey||e.metaKey) && e.key === 'n') { e.preventDefault(); openAddModal(); }
         });
 
