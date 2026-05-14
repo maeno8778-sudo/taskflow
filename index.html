@@ -9,8 +9,6 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#7C8CF8">
     <meta name="format-detection" content="telephone=no">
-    <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 180 180%27><rect width=%27180%27 height=%27180%27 rx=%2740%27 fill=%27%237C8CF8%27/><text x=%2790%27 y=%27118%27 font-size=%27110%27 font-family=%27Helvetica,Arial,sans-serif%27 font-weight=%27700%27 text-anchor=%27middle%27 fill=%27white%27>T</text></svg>">
-    <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27><rect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%237C8CF8%27/><text x=%2732%27 y=%2743%27 font-size=%2740%27 font-family=%27Helvetica,Arial,sans-serif%27 font-weight=%27700%27 text-anchor=%27middle%27 fill=%27white%27>T</text></svg>">
     <title>TaskFlow</title>
     <style>
 /* ===== Reset & Base ===== */
@@ -3944,8 +3942,18 @@ body.drag-in-progress * {
         },
 
         eventToGEvent(ev) {
-            const start = ev.time ? { dateTime: `${ev.date}T${ev.time}:00`, timeZone: 'Asia/Tokyo' } : { date: ev.date };
-            const end = ev.time ? { dateTime: `${ev.date}T${ev.time}:00`, timeZone: 'Asia/Tokyo' } : { date: ev.date };
+            const pad = n => String(n).padStart(2, '0');
+            let start, end;
+            if (ev.time) {
+                start = { dateTime: `${ev.date}T${ev.time}:00`, timeZone: 'Asia/Tokyo' };
+                const endDt = new Date(`${ev.date}T${ev.time}:00`);
+                endDt.setHours(endDt.getHours() + 1);
+                end = { dateTime: `${endDt.getFullYear()}-${pad(endDt.getMonth()+1)}-${pad(endDt.getDate())}T${pad(endDt.getHours())}:${pad(endDt.getMinutes())}:00`, timeZone: 'Asia/Tokyo' };
+            } else {
+                start = { date: ev.date };
+                const endDt = new Date(ev.date); endDt.setDate(endDt.getDate() + 1);
+                end = { date: `${endDt.getFullYear()}-${pad(endDt.getMonth()+1)}-${pad(endDt.getDate())}` };
+            }
             return {
                 summary: `[TF] ${ev.title}`,
                 description: ev.memo || '',
@@ -3971,7 +3979,7 @@ body.drag-in-progress * {
                 const now = new Date();
                 const tMin = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
                 const tMax = new Date(now.getFullYear(), now.getMonth() + 3, 1).toISOString();
-                const existing = await this.apiFetch(`${BASE}?timeMin=${tMin}&timeMax=${tMax}&privateExtendedProperty=taskflowId&singleEvents=true&maxResults=500`);
+                const existing = await this.apiFetch(`${BASE}?timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}&singleEvents=true&maxResults=500`);
                 const gEvents = existing.items || [];
 
                 // 2. Pull: Google → TaskFlow (new events from Google not in TaskFlow)
