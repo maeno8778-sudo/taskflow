@@ -2058,7 +2058,7 @@ form, .modal-body { padding: 18px 22px; }
             return s;
         },
 
-        init() {
+        async init() {
             const cfg = this.loadConfig();
             if (!cfg) {
                 this.status = 'disabled';
@@ -2072,8 +2072,13 @@ form, .modal-body { padding: 18px 22px; }
                 return;
             }
             try {
-                // Clean up any existing app
-                try { firebase.app().delete(); } catch {}
+                // Clean up any existing app safely
+                try {
+                    const existing = firebase.apps && firebase.apps[0];
+                    if (existing) existing.delete();
+                } catch {}
+                // Small delay to let deletion settle
+                await new Promise(r => setTimeout(r, 200));
                 this.app = firebase.initializeApp(cfg);
                 this.db = firebase.firestore();
                 this.code = localStorage.getItem(SYNC_CODE_KEY) || this.genCode();
@@ -2088,7 +2093,7 @@ form, .modal-body { padding: 18px 22px; }
             }
         },
 
-        configure(cfg, newCode) {
+        async configure(cfg, newCode) {
             // Disconnect current
             if (this.unsub) { try { this.unsub(); } catch {} this.unsub = null; }
             if (this.app) { try { this.app.delete(); } catch {} this.app = null; }
@@ -2098,7 +2103,7 @@ form, .modal-body { padding: 18px 22px; }
             if (newCode) {
                 localStorage.setItem(SYNC_CODE_KEY, newCode.trim());
             }
-            this.init();
+            await this.init();
         },
 
         disconnect() {
