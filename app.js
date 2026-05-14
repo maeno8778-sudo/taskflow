@@ -1756,8 +1756,18 @@
         },
 
         eventToGEvent(ev) {
-            const start = ev.time ? { dateTime: `${ev.date}T${ev.time}:00`, timeZone: 'Asia/Tokyo' } : { date: ev.date };
-            const end = ev.time ? { dateTime: `${ev.date}T${ev.time}:00`, timeZone: 'Asia/Tokyo' } : { date: ev.date };
+            const pad = n => String(n).padStart(2, '0');
+            let start, end;
+            if (ev.time) {
+                start = { dateTime: `${ev.date}T${ev.time}:00`, timeZone: 'Asia/Tokyo' };
+                const endDt = new Date(`${ev.date}T${ev.time}:00`);
+                endDt.setHours(endDt.getHours() + 1);
+                end = { dateTime: `${endDt.getFullYear()}-${pad(endDt.getMonth()+1)}-${pad(endDt.getDate())}T${pad(endDt.getHours())}:${pad(endDt.getMinutes())}:00`, timeZone: 'Asia/Tokyo' };
+            } else {
+                start = { date: ev.date };
+                const endDt = new Date(ev.date); endDt.setDate(endDt.getDate() + 1);
+                end = { date: `${endDt.getFullYear()}-${pad(endDt.getMonth()+1)}-${pad(endDt.getDate())}` };
+            }
             return {
                 summary: `[TF] ${ev.title}`,
                 description: ev.memo || '',
@@ -1783,7 +1793,7 @@
                 const now = new Date();
                 const tMin = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
                 const tMax = new Date(now.getFullYear(), now.getMonth() + 3, 1).toISOString();
-                const existing = await this.apiFetch(`${BASE}?timeMin=${tMin}&timeMax=${tMax}&privateExtendedProperty=taskflowId&singleEvents=true&maxResults=500`);
+                const existing = await this.apiFetch(`${BASE}?timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}&singleEvents=true&maxResults=500`);
                 const gEvents = existing.items || [];
 
                 // 2. Pull: Google → TaskFlow (new events from Google not in TaskFlow)
