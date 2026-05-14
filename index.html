@@ -2564,10 +2564,71 @@ body.drag-in-progress * {
     }
 
     // ===== Notifications =====
-    function requestNotificationPermission() {
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
+    // ===== Notification & Alarm System =====
+    const REPEAT_INTERVALS_MS = [
+        15 * 60 * 1000,   // 15分後
+        30 * 60 * 1000,   // さらに30分後
+        60 * 60 * 1000,   // さらに1時間後
+        60 * 60 * 1000,   // さらに1時間後
+    ];
+
+    async function requestNotificationPermission() {
+        if (!('Notification' in window)) return;
+        if (Notification.permission === 'default') {
+            await Notification.requestPermission();
         }
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            try {
+                const reg = await navigator.serviceWorker.register('/taskflow/sw.js', { scope: '/taskflow/' });
+                // Listen for messages (e.g. "mark task done" from notification action)
+                navigator.serviceWorker.addEventListener('message', e => {
+                    if (e.data && e.data.type === 'MARK_DONE' && e.data.taskId) {
+                        const t = state.tasks.find(t => t.id === e.data.taskId);
+                        if (t && !t.completed) {
+                            t.completed = true;
+                            saveState();
+                            renderCurrentView();
+                            showToast('タスクを完了しました');
+                        }
+                    }
+                });
+            } catch (err) { /* SW unavailable */ }
+        }
+    }
+
+    function getAlarmTime(task) {
+        if (!task.scheduleDate || !task.time) return null;
+        const d = parseDate(task.scheduleDate);
+        const [h, m] = task.time.split(':').map(Number);
+        d.setHours(h, m, 0, 0);
+        const offsets = { ontime: 0, '5min': 5, '15min': 15, '30min': 30, '1hour': 60, '1day': 1440 };
+        d.setMinutes(d.getMinutes() - (offsets[task.alarm] || 0));
+        return d;
+    }
+
+    function fireNotification(task, isRepeat = false) {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        const prefix = isRepeat ? '🔔 再通知: ' : '🔔 ';
+        const body = `${formatDateFull(task.scheduleDate)} ${task.time || ''}`.trim();
+        // Try via Service Worker (works when app is backgrounded on iOS PWA)
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'SHOW_NOTIFICATION',
+                title: prefix + task.title,
+                body,
+                taskId: task.id,
+            });
+        }
+        // Also fire direct notification (works when app is open)
+        try {
+            new Notification(prefix + task.title, {
+                body,
+                tag: task.id,
+                requireInteraction: true,
+                vibrate: [200, 100, 200],
+            });
+        } catch (e) { /* ignore */ }
     }
 
     function scheduleAlarms() {
@@ -2576,22 +2637,66 @@ body.drag-in-progress * {
         if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
         const now = new Date();
+
+        // Check missed alarms (fired while app was closed)
+        const missedKey = 'taskflow_alarm_fired';
+        const firedMap = JSON.parse(localStorage.getItem(missedKey) || '{}');
+
         state.tasks.forEach(task => {
-            if (task.completed || task.alarm === 'none' || !task.scheduleDate || !task.time) return;
-            const td = parseDate(task.scheduleDate);
-            const [h,m] = task.time.split(':').map(Number);
-            td.setHours(h, m, 0, 0);
-            let alarmTime = new Date(td);
-            const offsets = { ontime:0, '5min':5, '15min':15, '30min':30, '1hour':60, '1day':1440 };
-            const mins = offsets[task.alarm] || 0;
-            alarmTime.setMinutes(alarmTime.getMinutes() - mins);
-            const diff = alarmTime.getTime() - now.getTime();
-            if (diff > 0 && diff < 86400000) {
+            if (task.completed || !task.alarm || task.alarm === 'none') return;
+            const alarmTime = getAlarmTime(task);
+            if (!alarmTime) return;
+
+            const alarmMs = alarmTime.getTime();
+            const nowMs = now.getTime();
+            const lastFired = firedMap[task.id] || 0;
+
+            if (alarmMs <= nowMs) {
+                // Alarm already passed
+                if (!task.completed && lastFired === 0) {
+                    // Missed alarm — notify now
+                    firedMap[task.id] = alarmMs;
+                    localStorage.setItem(missedKey, JSON.stringify(firedMap));
+                    setTimeout(() => fireNotification(task, false), 500);
+                    scheduleRepeat(task, 0, firedMap);
+                } else if (!task.completed && lastFired > 0) {
+                    // Already fired, check if repeat is due
+                    scheduleRepeat(task, 0, firedMap);
+                }
+            } else if (alarmMs - nowMs < 24 * 60 * 60 * 1000) {
+                // Future alarm within 24h — schedule it
+                const diff = alarmMs - nowMs;
                 window._alarmTimers.push(setTimeout(() => {
-                    new Notification('TaskFlow', { body: `${task.title}\n${formatDateFull(task.scheduleDate)} ${task.time}` });
+                    firedMap[task.id] = alarmMs;
+                    localStorage.setItem(missedKey, JSON.stringify(firedMap));
+                    fireNotification(task, false);
+                    scheduleRepeat(task, 0, firedMap);
                 }, diff));
             }
         });
+
+        // Clean up fired map (remove completed or non-existent tasks)
+        const taskIds = new Set(state.tasks.map(t => t.id));
+        Object.keys(firedMap).forEach(id => {
+            const t = state.tasks.find(t => t.id === id);
+            if (!t || t.completed) delete firedMap[id];
+        });
+        localStorage.setItem(missedKey, JSON.stringify(firedMap));
+    }
+
+    function scheduleRepeat(task, repeatIndex, firedMap) {
+        if (task.completed) return;
+        if (repeatIndex >= REPEAT_INTERVALS_MS.length) return;
+
+        const delay = REPEAT_INTERVALS_MS[repeatIndex];
+        window._alarmTimers = window._alarmTimers || [];
+        window._alarmTimers.push(setTimeout(() => {
+            // Re-check if still incomplete
+            const t = state.tasks.find(t => t.id === task.id);
+            if (!t || t.completed) return;
+            fireNotification(t, true);
+            scheduleRepeat(t, repeatIndex + 1, firedMap);
+        }, delay));
     }
 
     // ===== DOM Helpers =====
