@@ -2420,11 +2420,13 @@ body.drag-in-progress * {
             const scrollEl = document.querySelector('.view.active');
             if (scrollEl) {
                 const rect = scrollEl.getBoundingClientRect();
-                const edgeSize = 80;
-                if (y < rect.top + edgeSize) {
-                    scrollEl.scrollTop -= 6;
-                } else if (y > rect.bottom - edgeSize) {
-                    scrollEl.scrollTop += 6;
+                const edgeSize = 90;
+                const viewTop = rect.top;
+                const viewBottom = Math.min(rect.bottom, window.innerHeight);
+                if (y < viewTop + edgeSize) {
+                    scrollEl.scrollTop -= 8;
+                } else if (y > viewBottom - edgeSize) {
+                    scrollEl.scrollTop += 8;
                 }
             }
 
