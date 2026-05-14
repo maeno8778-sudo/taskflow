@@ -1629,6 +1629,23 @@ form, .modal-body { padding: 18px 22px; }
 }
 
 /* ===== Touch Drag & Drop ===== */
+
+/* Prevent iOS text selection during long-press drag */
+.task-item, .event-item {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+body.drag-in-progress * {
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    cursor: grabbing !important;
+}
+/* Dialog buttons need pointer-events even during drag */
+#dnd-modal * {
+    pointer-events: auto;
+}
+
 .drag-clone {
     position: fixed;
     z-index: 9999;
@@ -2367,6 +2384,9 @@ form, .modal-body { padding: 18px 22px; }
             // Haptic feedback
             if (navigator.vibrate) navigator.vibrate(40);
 
+            // Prevent text selection during drag
+            document.body.classList.add('drag-in-progress');
+
             // Create floating clone
             const rect = el.getBoundingClientRect();
             const clone = el.cloneNode(true);
@@ -2396,6 +2416,18 @@ form, .modal-body { padding: 18px 22px; }
             this.clone.style.left = (x - w / 2) + 'px';
             this.clone.style.top = (y - 50) + 'px';
 
+            // Auto-scroll when near top/bottom edge of scrollable view
+            const scrollEl = document.querySelector('.view.active');
+            if (scrollEl) {
+                const rect = scrollEl.getBoundingClientRect();
+                const edgeSize = 80;
+                if (y < rect.top + edgeSize) {
+                    scrollEl.scrollTop -= 6;
+                } else if (y > rect.bottom - edgeSize) {
+                    scrollEl.scrollTop += 6;
+                }
+            }
+
             // Find drop zone under finger (hide clone temporarily)
             this.clone.style.visibility = 'hidden';
             const under = document.elementFromPoint(x, y);
@@ -2423,7 +2455,8 @@ form, .modal-body { padding: 18px 22px; }
             this.cancel();
 
             if (dropDate && id) {
-                this._showDialog(id, type, dropDate);
+                // Delay so the touchend doesn't accidentally tap dialog buttons
+                setTimeout(() => this._showDialog(id, type, dropDate), 80);
             }
         },
 
@@ -2475,6 +2508,7 @@ form, .modal-body { padding: 18px 22px; }
             if (this.clone) { this.clone.remove(); this.clone = null; }
             if (this.originalEl) { this.originalEl.classList.remove('drag-active'); this.originalEl = null; }
             if (this.currentDropZone) { this.currentDropZone.classList.remove('drop-zone-highlight'); this.currentDropZone = null; }
+            document.body.classList.remove('drag-in-progress');
             this.active = false;
             this.currentDropDate = null;
             this.pendingId = null;
@@ -2900,13 +2934,11 @@ form, .modal-body { padding: 18px 22px; }
             e.preventDefault();
             element.classList.remove('drag-over');
             if (!draggedItemId) return;
-            if (draggedItemId.type === 'task') {
-                const task = state.tasks.find(t => t.id === draggedItemId.id);
-                if (task) { task.scheduleDate = ds; saveState(); renderCurrentView(); }
-            } else {
-                const ev = state.events.find(v => v.id === draggedItemId.id);
-                if (ev) { ev.date = ds; saveState(); renderCurrentView(); }
-            }
+            const id = draggedItemId.id;
+            const type = draggedItemId.type;
+            draggedItemId = null;
+            // Show copy/move dialog for PC drag too
+            TouchDnD._showDialog(id, type, ds);
         });
     }
 
