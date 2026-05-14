@@ -2041,6 +2041,18 @@ body.drag-in-progress * {
                 </div>
 
                 <div class="settings-section">
+                    <h4>🔔 通知・アラーム</h4>
+                    <p class="settings-desc">タスクのアラーム時刻に通知を受け取れます。<br>
+                    iPhoneでホーム画面に追加済みの場合、アプリを閉じていても届きます（iOS 16.4以上）。</p>
+                    <div class="form-group">
+                        <label>通知の状態</label>
+                        <div id="notif-status" class="sync-status sync-off">未確認</div>
+                    </div>
+                    <button type="button" class="btn-primary" id="notif-enable-btn" style="width:100%;">🔔 通知を許可する</button>
+                    <small class="form-hint" style="margin-top:6px;">タップするとiOSの許可ダイアログが表示されます。</small>
+                </div>
+
+                <div class="settings-section">
                     <h4>💾 データ管理</h4>
                     <div class="form-actions">
                         <button type="button" class="btn-secondary" id="data-export">エクスポート (JSON)</button>
@@ -2572,28 +2584,84 @@ body.drag-in-progress * {
         60 * 60 * 1000,   // さらに1時間後
     ];
 
-    async function requestNotificationPermission() {
-        if (!('Notification' in window)) return;
-        if (Notification.permission === 'default') {
-            await Notification.requestPermission();
-        }
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            try {
-                const reg = await navigator.serviceWorker.register('/taskflow/sw.js', { scope: '/taskflow/' });
-                // Listen for messages (e.g. "mark task done" from notification action)
-                navigator.serviceWorker.addEventListener('message', e => {
-                    if (e.data && e.data.type === 'MARK_DONE' && e.data.taskId) {
-                        const t = state.tasks.find(t => t.id === e.data.taskId);
-                        if (t && !t.completed) {
-                            t.completed = true;
-                            saveState();
-                            renderCurrentView();
-                            showToast('タスクを完了しました');
-                        }
+    async function registerServiceWorker() {
+        if (!('serviceWorker' in navigator)) return;
+        try {
+            await navigator.serviceWorker.register('/taskflow/sw.js', { scope: '/taskflow/' });
+            navigator.serviceWorker.addEventListener('message', e => {
+                if (e.data && e.data.type === 'MARK_DONE' && e.data.taskId) {
+                    const t = state.tasks.find(t => t.id === e.data.taskId);
+                    if (t && !t.completed) {
+                        t.completed = true;
+                        saveState();
+                        renderCurrentView();
+                        showToast('タスクを完了しました');
                     }
-                });
-            } catch (err) { /* SW unavailable */ }
+                }
+            });
+        } catch (err) { /* SW not available */ }
+    }
+
+    function updateNotifStatusUI() {
+        const el = document.getElementById('notif-status');
+        const btn = document.getElementById('notif-enable-btn');
+        if (!el) return;
+        if (!('Notification' in window)) {
+            el.textContent = 'この端末は非対応';
+            el.className = 'sync-status sync-error';
+            if (btn) btn.style.display = 'none';
+            return;
+        }
+        const p = Notification.permission;
+        if (p === 'granted') {
+            el.textContent = '✅ 許可済み';
+            el.className = 'sync-status sync-on';
+            if (btn) btn.textContent = '🔔 通知テストを送る';
+        } else if (p === 'denied') {
+            el.textContent = '❌ ブロック中 (設定アプリから変更)';
+            el.className = 'sync-status sync-error';
+            if (btn) btn.style.display = 'none';
+        } else {
+            el.textContent = '未許可';
+            el.className = 'sync-status sync-off';
+            if (btn) { btn.textContent = '🔔 通知を許可する'; btn.style.display = ''; }
+        }
+    }
+
+    async function requestNotificationPermission() {
+        // SW registration (safe to call on load — no permission prompt)
+        registerServiceWorker();
+        updateNotifStatusUI();
+    }
+
+    async function enableNotifications() {
+        if (!('Notification' in window)) {
+            alert('この端末はWeb通知に対応していません。');
+            return;
+        }
+        if (Notification.permission === 'granted') {
+            // Send a test notification
+            fireNotification({
+                id: 'test',
+                title: 'テスト通知',
+                scheduleDate: today(),
+                time: '',
+                alarm: 'ontime',
+            }, false);
+            showToast('テスト通知を送りました');
+            return;
+        }
+        if (Notification.permission === 'denied') {
+            alert('通知がブロックされています。\niPhoneの場合:「設定」→「Safari」→「通知」または「設定」→「通知」→アプリ名からONにしてください。');
+            return;
+        }
+        const result = await Notification.requestPermission();
+        updateNotifStatusUI();
+        if (result === 'granted') {
+            scheduleAlarms();
+            showToast('通知を許可しました！');
+        } else {
+            showToast('通知が許可されませんでした');
         }
     }
 
@@ -3759,6 +3827,7 @@ body.drag-in-progress * {
         const settingsModal = $('#settings-modal');
         const openSettings = () => {
             Sync.updateUI();
+            updateNotifStatusUI();
             const cfgInput = $('#sync-config-input');
             const cfg = Sync.loadConfig();
             cfgInput.value = cfg ? JSON.stringify(cfg, null, 2) : '';
@@ -3839,6 +3908,9 @@ body.drag-in-progress * {
                 if (typeof showToast === 'function') showToast('同期コードをコピーしました');
             });
         });
+
+        // Notification enable button
+        $('#notif-enable-btn') && $('#notif-enable-btn').addEventListener('click', enableNotifications);
 
         // Data export/import
         $('#data-export') && $('#data-export').addEventListener('click', () => {
