@@ -1,9 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
-    <title>TaskFlow</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="TaskFlow">
@@ -12,6 +11,7 @@
     <meta name="format-detection" content="telephone=no">
     <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 180 180%27><rect width=%27180%27 height=%27180%27 rx=%2740%27 fill=%27%237C8CF8%27/><text x=%2790%27 y=%27118%27 font-size=%27110%27 font-family=%27Helvetica,Arial,sans-serif%27 font-weight=%27700%27 text-anchor=%27middle%27 fill=%27white%27>T</text></svg>">
     <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27><rect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%237C8CF8%27/><text x=%2732%27 y=%2743%27 font-size=%2740%27 font-family=%27Helvetica,Arial,sans-serif%27 font-weight=%27700%27 text-anchor=%27middle%27 fill=%27white%27>T</text></svg>">
+    <title>TaskFlow</title>
     <style>
 /* ===== Reset & Base ===== */
 *, *::before, *::after {
@@ -1711,11 +1711,63 @@ body.drag-in-progress * {
     font-weight: 400;
     color: var(--text-secondary);
 }
-    </style>
+
+/* ===== Calendar Sync UI ===== */
+.cal-subsection {
+    background: var(--bg-tertiary);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+.cal-subsection h4 {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+.cal-subsection .btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+.cal-category-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 6px 0;
+    max-height: 120px;
+    overflow-y: auto;
+}
+.cal-check-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color, #e0e4ee);
+    user-select: none;
+    -webkit-user-select: none;
+}
+.cal-check-label:hover {
+    background: var(--bg-hover);
+}
+.cal-check-label input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 14px;
+    height: 14px;
+}
+
+</style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
     <div id="app">
@@ -2050,6 +2102,47 @@ body.drag-in-progress * {
                     </div>
                     <button type="button" class="btn-primary" id="notif-enable-btn" style="width:100%;">🔔 通知を許可する</button>
                     <small class="form-hint" style="margin-top:6px;">タップするとiOSの許可ダイアログが表示されます。</small>
+                </div>
+
+                <div class="settings-section">
+                    <h4>📅 カレンダー連携</h4>
+
+                    <!-- Google Calendar -->
+                    <div class="cal-subsection">
+                        <h5>Googleカレンダー（双方向同期）</h5>
+                        <div class="form-group">
+                            <label>OAuth クライアントID</label>
+                            <input type="text" id="gcal-client-id" placeholder="xxxxx.apps.googleusercontent.com">
+                            <small class="form-hint">Google Cloud Console で取得。<a href="#" id="gcal-setup-guide" style="color:var(--accent);">設定手順を見る</a></small>
+                        </div>
+                        <div class="form-group">
+                            <label>状態</label>
+                            <div id="gcal-status" class="sync-status sync-off">未接続</div>
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button type="button" class="btn-primary" id="gcal-signin-btn">Googleでサインイン</button>
+                            <button type="button" class="btn-secondary" id="gcal-sync-btn" style="display:none;">🔄 今すぐ同期</button>
+                            <button type="button" class="btn-danger" id="gcal-signout-btn" style="display:none;">切断</button>
+                        </div>
+                    </div>
+
+                    <!-- Apple Calendar -->
+                    <div class="cal-subsection">
+                        <h5>Appleカレンダー（.icsエクスポート）</h5>
+                        <p class="settings-desc" style="margin:0 0 8px;">iOSの制限により一方向のみ。エクスポートしたファイルをiPhoneのファイルアプリで開くとカレンダーに追加できます。</p>
+                        <button type="button" class="btn-secondary" id="ics-export-btn" style="width:100%;">📥 .icsをエクスポート（Appleカレンダー用）</button>
+                    </div>
+
+                    <!-- Category & Type Filter -->
+                    <div class="cal-subsection">
+                        <h5>同期するカテゴリー</h5>
+                        <div id="cal-category-filter" class="cal-category-filter"></div>
+                        <h5 style="margin-top:12px;">同期する種類</h5>
+                        <div style="display:flex;gap:16px;">
+                            <label class="cal-check-label"><input type="checkbox" id="cal-sync-tasks" checked> タスク</label>
+                            <label class="cal-check-label"><input type="checkbox" id="cal-sync-events" checked> 予定</label>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="settings-section">
@@ -2769,7 +2862,7 @@ body.drag-in-progress * {
 
     // ===== DOM Helpers =====
     const $ = sel => document.querySelector(sel);
-    const $$ = sel => document.querySelectorAll(sel);
+    const $ = sel => document.querySelectorAll(sel);
 
     function el(tag, attrs = {}, children = []) {
         const e = document.createElement(tag);
@@ -3334,7 +3427,7 @@ body.drag-in-progress * {
                 onClick: () => {
                     switchView('categories');
                     setTimeout(() => {
-                        const sections = $$('.category-section');
+                        const sections = $('.category-section');
                         const idx = state.categories.findIndex(c=>c.id===cat.id);
                         if (sections[idx]) sections[idx].scrollIntoView({behavior:'smooth'});
                     }, 50);
@@ -3357,8 +3450,8 @@ body.drag-in-progress * {
 
     function switchView(view) {
         currentView = view;
-        $$('.view').forEach(v => v.classList.remove('active'));
-        $$('.nav-item').forEach(n => n.classList.remove('active'));
+        $('.view').forEach(v => v.classList.remove('active'));
+        $('.nav-item').forEach(n => n.classList.remove('active'));
         $(`#${view}-view`).classList.add('active');
         $(`.nav-item[data-view="${view}"]`).classList.add('active');
         const titles = {weekly:'ウィークリー',calendar:'カレンダー',categories:'カテゴリー',overdue:'未達成タスク'};
@@ -3471,7 +3564,7 @@ body.drag-in-progress * {
         $('#task-form').reset();
         $('#task-fields').style.display = '';
         $('#event-fields').style.display = 'none';
-        $$('.type-option').forEach(o => o.classList.remove('active'));
+        $('.type-option').forEach(o => o.classList.remove('active'));
         $('.type-option[data-type="task"]').classList.add('active');
         $('#delete-task-btn').style.display = 'none';
         renderSelectedCategories();
@@ -3538,7 +3631,7 @@ body.drag-in-progress * {
 
     function setItemType(type) {
         currentItemType = type;
-        $$('.type-option').forEach(o => o.classList.remove('active'));
+        $('.type-option').forEach(o => o.classList.remove('active'));
         $(`.type-option[data-type="${type}"]`).classList.add('active');
         $('#task-fields').style.display = type === 'task' ? '' : 'none';
         $('#event-fields').style.display = type === 'event' ? '' : 'none';
@@ -3564,7 +3657,7 @@ body.drag-in-progress * {
         $('#category-modal-title').textContent = 'カテゴリー追加';
         $('#category-submit-btn').textContent = '追加';
         $('#category-form').reset();
-        $$('.color-option').forEach(o => o.classList.remove('selected'));
+        $('.color-option').forEach(o => o.classList.remove('selected'));
         $('.color-option').classList.add('selected');
         $('#category-modal').classList.add('active');
         setTimeout(() => $('#category-name').focus(), 80);
@@ -3577,7 +3670,7 @@ body.drag-in-progress * {
         $('#category-modal-title').textContent = 'カテゴリー編集';
         $('#category-submit-btn').textContent = '保存';
         $('#category-name').value = cat.name;
-        $$('.color-option').forEach(o => {
+        $('.color-option').forEach(o => {
             o.classList.toggle('selected', o.dataset.color === cat.color);
         });
         $('#category-modal').classList.add('active');
@@ -3642,12 +3735,358 @@ body.drag-in-progress * {
         container.classList.add('active');
     }
 
+    // ===== ICS Generator (Apple Calendar export) =====
+    function icsEscape(str) {
+        return (str || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+    }
+
+    function icsDate(dateStr, timeStr) {
+        if (!dateStr) return null;
+        const d = parseDate(dateStr);
+        if (timeStr) {
+            const [h, m] = timeStr.split(':').map(Number);
+            d.setHours(h, m, 0, 0);
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+        }
+        const pad = n => String(n).padStart(2, '0');
+        return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+    }
+
+    function icsTrigger(alarmType) {
+        const map = { ontime: 0, '5min': -5, '15min': -15, '30min': -30, '1hour': -60, '1day': -1440 };
+        const mins = map[alarmType] || 0;
+        if (mins === 0) return 'PT0S';
+        return `-PT${Math.abs(mins)}M`;
+    }
+
+    function generateICS(filterCategoryIds, syncTasks, syncEvents) {
+        const lines = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//TaskFlow//JP',
+            'CALSCALE:GREGORIAN',
+            'METHOD:PUBLISH',
+        ];
+        const now = icsDate(today(), null);
+
+        if (syncEvents) {
+            state.events.forEach(ev => {
+                const dt = icsDate(ev.date, ev.time);
+                if (!dt) return;
+                lines.push('BEGIN:VEVENT');
+                lines.push(`UID:tf-event-${ev.id}@taskflow`);
+                lines.push(`DTSTAMP:${now}T000000Z`);
+                lines.push(`DTSTART${ev.time ? '' : ';VALUE=DATE'}:${dt}`);
+                lines.push(`DTEND${ev.time ? '' : ';VALUE=DATE'}:${dt}`);
+                lines.push(`SUMMARY:${icsEscape(ev.title)}`);
+                if (ev.memo) lines.push(`DESCRIPTION:${icsEscape(ev.memo)}`);
+                lines.push('END:VEVENT');
+            });
+        }
+
+        if (syncTasks) {
+            state.tasks.filter(t => {
+                if (!filterCategoryIds || filterCategoryIds.length === 0) return true;
+                return (t.categories || []).some(c => filterCategoryIds.includes(c));
+            }).forEach(t => {
+                lines.push('BEGIN:VTODO');
+                lines.push(`UID:tf-task-${t.id}@taskflow`);
+                lines.push(`DTSTAMP:${now}T000000Z`);
+                lines.push(`SUMMARY:${icsEscape(t.title)}`);
+                if (t.scheduleDate) {
+                    const dt = icsDate(t.scheduleDate, t.time);
+                    lines.push(`DTSTART${t.time ? '' : ';VALUE=DATE'}:${dt}`);
+                }
+                if (t.deadline) {
+                    lines.push(`DUE;VALUE=DATE:${icsDate(t.deadline, null)}`);
+                }
+                lines.push(`STATUS:${t.completed ? 'COMPLETED' : 'NEEDS-ACTION'}`);
+                const pmap = { urgent: 1, high: 3, medium: 5, low: 9 };
+                lines.push(`PRIORITY:${pmap[t.priority] || 5}`);
+                if (t.memo) lines.push(`DESCRIPTION:${icsEscape(t.memo)}`);
+                // Alarm
+                if (t.alarm && t.alarm !== 'none' && t.time) {
+                    lines.push('BEGIN:VALARM');
+                    lines.push('ACTION:AUDIO');
+                    lines.push(`TRIGGER:${icsTrigger(t.alarm)}`);
+                    lines.push(`DESCRIPTION:${icsEscape(t.title)}`);
+                    lines.push('END:VALARM');
+                }
+                lines.push('END:VTODO');
+            });
+        }
+
+        lines.push('END:VCALENDAR');
+        return lines.join('\r\n');
+    }
+
+    function exportICS(filterCategoryIds, syncTasks, syncEvents) {
+        const content = generateICS(filterCategoryIds, syncTasks, syncEvents);
+        const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `taskflow_${today()}.ics`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // ===== Google Calendar Module =====
+    const GCAL_CFG_KEY = 'taskflow_gcal_clientid';
+    const GCAL_SYNC_MAP_KEY = 'taskflow_gcal_syncmap'; // taskflowId -> googleEventId
+
+    const GoogleCal = {
+        clientId: null,
+        accessToken: null,
+        tokenExpiry: 0,
+        syncing: false,
+
+        loadClientId() {
+            return localStorage.getItem(GCAL_CFG_KEY) || '';
+        },
+
+        saveClientId(id) {
+            localStorage.setItem(GCAL_CFG_KEY, id);
+            this.clientId = id;
+        },
+
+        getSyncMap() {
+            try { return JSON.parse(localStorage.getItem(GCAL_SYNC_MAP_KEY) || '{}'); } catch { return {}; }
+        },
+
+        saveSyncMap(m) {
+            localStorage.setItem(GCAL_SYNC_MAP_KEY, JSON.stringify(m));
+        },
+
+        isSignedIn() {
+            return !!(this.accessToken && Date.now() < this.tokenExpiry);
+        },
+
+        async signIn() {
+            const clientId = this.clientId || this.loadClientId();
+            if (!clientId) { showToast('クライアントIDを入力してください'); return false; }
+            if (typeof google === 'undefined' || !google.accounts) {
+                showToast('Google SDKが読み込まれていません。ネット接続を確認してください。');
+                return false;
+            }
+            return new Promise(resolve => {
+                const client = google.accounts.oauth2.initTokenClient({
+                    client_id: clientId,
+                    scope: 'https://www.googleapis.com/auth/calendar.events',
+                    callback: resp => {
+                        if (resp.error) { showToast('サインイン失敗: ' + resp.error); resolve(false); return; }
+                        this.accessToken = resp.access_token;
+                        this.tokenExpiry = Date.now() + (resp.expires_in || 3600) * 1000;
+                        this.updateUI();
+                        resolve(true);
+                    },
+                });
+                client.requestAccessToken({ prompt: '' });
+            });
+        },
+
+        signOut() {
+            if (this.accessToken && typeof google !== 'undefined') {
+                try { google.accounts.oauth2.revoke(this.accessToken); } catch {}
+            }
+            this.accessToken = null;
+            this.tokenExpiry = 0;
+            this.updateUI();
+            showToast('Googleカレンダーとの接続を切断しました');
+        },
+
+        async apiFetch(url, method = 'GET', body = null) {
+            const opts = {
+                method,
+                headers: {
+                    Authorization: `Bearer ${this.accessToken}`,
+                    'Content-Type': 'application/json',
+                },
+            };
+            if (body) opts.body = JSON.stringify(body);
+            const res = await fetch(url, opts);
+            if (res.status === 401) { this.accessToken = null; this.updateUI(); throw new Error('再サインインが必要です'); }
+            if (!res.ok) throw new Error(`API error ${res.status}`);
+            if (res.status === 204) return null;
+            return res.json();
+        },
+
+        taskToGEvent(task) {
+            const cats = (task.categories || []).map(getCategoryById).filter(Boolean).map(c => c.name);
+            const start = task.scheduleDate
+                ? (task.time ? { dateTime: `${task.scheduleDate}T${task.time}:00`, timeZone: 'Asia/Tokyo' }
+                             : { date: task.scheduleDate })
+                : { date: today() };
+            const end = task.deadline
+                ? { date: task.deadline }
+                : (task.time ? { dateTime: `${task.scheduleDate}T${task.time}:00`, timeZone: 'Asia/Tokyo' }
+                             : { date: task.scheduleDate || today() });
+
+            const reminders = (task.alarm && task.alarm !== 'none' && task.time)
+                ? { useDefault: false, overrides: [{ method: 'popup', minutes: { ontime:0,'5min':5,'15min':15,'30min':30,'1hour':60,'1day':1440 }[task.alarm] || 0 }] }
+                : { useDefault: false, overrides: [] };
+
+            return {
+                summary: `[TF]${task.completed ? '✅' : ''} ${task.title}`,
+                description: [task.memo, task.deadline ? `期限: ${task.deadline}` : '', cats.length ? `カテゴリー: ${cats.join(', ')}` : ''].filter(Boolean).join('\n'),
+                start, end, reminders,
+                extendedProperties: { private: { taskflowId: task.id, type: 'task' } },
+            };
+        },
+
+        eventToGEvent(ev) {
+            const start = ev.time ? { dateTime: `${ev.date}T${ev.time}:00`, timeZone: 'Asia/Tokyo' } : { date: ev.date };
+            const end = ev.time ? { dateTime: `${ev.date}T${ev.time}:00`, timeZone: 'Asia/Tokyo' } : { date: ev.date };
+            return {
+                summary: `[TF] ${ev.title}`,
+                description: ev.memo || '',
+                start, end,
+                reminders: { useDefault: false, overrides: [] },
+                extendedProperties: { private: { taskflowId: ev.id, type: 'event' } },
+            };
+        },
+
+        async syncAll(filterCategoryIds, syncTasks, syncEvents) {
+            if (this.syncing) return;
+            if (!this.isSignedIn()) {
+                const ok = await this.signIn();
+                if (!ok) return;
+            }
+            this.syncing = true;
+            this.setStatus('同期中…', 'sync-connecting');
+            try {
+                const map = this.getSyncMap();
+                const BASE = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
+
+                // 1. Fetch existing TF events from Google
+                const now = new Date();
+                const tMin = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+                const tMax = new Date(now.getFullYear(), now.getMonth() + 3, 1).toISOString();
+                const existing = await this.apiFetch(`${BASE}?timeMin=${tMin}&timeMax=${tMax}&privateExtendedProperty=taskflowId&singleEvents=true&maxResults=500`);
+                const gEvents = existing.items || [];
+
+                // 2. Pull: Google → TaskFlow (new events from Google not in TaskFlow)
+                const knownTfIds = new Set([...state.tasks.map(t=>t.id), ...state.events.map(e=>e.id)]);
+                let pulled = 0;
+                gEvents.forEach(gev => {
+                    const tfId = gev.extendedProperties?.private?.taskflowId;
+                    if (tfId && knownTfIds.has(tfId)) return; // already in TaskFlow
+                    if (gev.status === 'cancelled') return;
+                    if (tfId) return; // managed by us but deleted locally — skip
+                    // Pure Google event → add as TaskFlow event
+                    const date = gev.start?.date || (gev.start?.dateTime || '').slice(0, 10);
+                    const time = gev.start?.dateTime ? gev.start.dateTime.slice(11, 16) : '';
+                    if (!date) return;
+                    state.events.push({ id: genId(), title: gev.summary || '(無題)', date, time, memo: gev.description || '', createdAt: new Date().toISOString() });
+                    pulled++;
+                });
+                if (pulled > 0) { saveStateLocal(); renderCurrentView(); }
+
+                // 3. Push: TaskFlow → Google
+                const gEventById = {};
+                gEvents.forEach(g => { if (g.extendedProperties?.private?.taskflowId) gEventById[g.extendedProperties.private.taskflowId] = g; });
+
+                const pushItem = async (tfId, gevBody) => {
+                    const existing = gEventById[tfId];
+                    if (existing && existing.status !== 'cancelled') {
+                        await this.apiFetch(`${BASE}/${existing.id}`, 'PUT', gevBody);
+                        map[tfId] = existing.id;
+                    } else {
+                        const created = await this.apiFetch(BASE, 'POST', gevBody);
+                        if (created) map[tfId] = created.id;
+                    }
+                };
+
+                const promises = [];
+                if (syncTasks) {
+                    state.tasks.filter(t => {
+                        if (!filterCategoryIds || filterCategoryIds.length === 0) return true;
+                        return (t.categories || []).some(c => filterCategoryIds.includes(c));
+                    }).forEach(t => promises.push(pushItem(t.id, this.taskToGEvent(t))));
+                }
+                if (syncEvents) {
+                    state.events.forEach(ev => promises.push(pushItem(ev.id, this.eventToGEvent(ev))));
+                }
+
+                await Promise.allSettled(promises);
+                this.saveSyncMap(map);
+
+                const timeStr = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                this.setStatus(`同期済み (${timeStr})`, 'sync-on');
+                showToast('Googleカレンダーと同期しました');
+            } catch (e) {
+                this.setStatus('エラー: ' + e.message, 'sync-error');
+                showToast('同期エラー: ' + e.message);
+            } finally {
+                this.syncing = false;
+            }
+        },
+
+        setStatus(text, cls) {
+            const el = document.getElementById('gcal-status');
+            if (el) { el.textContent = text; el.className = 'sync-status ' + cls; }
+        },
+
+        updateUI() {
+            const clientId = this.loadClientId();
+            const cidInput = document.getElementById('gcal-client-id');
+            if (cidInput && !cidInput.value) cidInput.value = clientId;
+
+            const signinBtn = document.getElementById('gcal-signin-btn');
+            const syncBtn = document.getElementById('gcal-sync-btn');
+            const signoutBtn = document.getElementById('gcal-signout-btn');
+            if (!signinBtn) return;
+
+            if (this.isSignedIn()) {
+                signinBtn.style.display = 'none';
+                syncBtn.style.display = '';
+                signoutBtn.style.display = '';
+                this.setStatus('接続済み', 'sync-on');
+            } else {
+                signinBtn.style.display = '';
+                syncBtn.style.display = 'none';
+                signoutBtn.style.display = 'none';
+                this.setStatus(clientId ? '未サインイン' : '未設定', 'sync-off');
+            }
+        },
+    };
+
+    function buildCalCategoryFilter() {
+        const container = document.getElementById('cal-category-filter');
+        if (!container) return;
+        const saved = JSON.parse(localStorage.getItem('taskflow_cal_categories') || '[]');
+        container.innerHTML = '';
+        if (state.categories.length === 0) {
+            container.textContent = 'カテゴリーがありません';
+            return;
+        }
+        state.categories.forEach(cat => {
+            const checked = saved.length === 0 || saved.includes(cat.id);
+            const label = document.createElement('label');
+            label.className = 'cal-check-label';
+            label.innerHTML = `<input type="checkbox" class="cal-cat-check" data-id="${cat.id}" ${checked ? 'checked' : ''}>
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${cat.color};margin-right:4px;"></span>
+                ${cat.name}`;
+            container.appendChild(label);
+        });
+    }
+
+    function getCalFilterSettings() {
+        const checks = document.querySelectorAll('.cal-cat-check');
+        const selectedIds = [...checks].filter(c => c.checked).map(c => c.dataset.id);
+        localStorage.setItem('taskflow_cal_categories', JSON.stringify(selectedIds));
+        const syncTasks = document.getElementById('cal-sync-tasks')?.checked !== false;
+        const syncEvents = document.getElementById('cal-sync-events')?.checked !== false;
+        return { filterCategoryIds: selectedIds, syncTasks, syncEvents };
+    }
+
     // ===== Init =====
     function init() {
         requestNotificationPermission();
 
         // Nav
-        $$('.nav-item').forEach(item => {
+        $('.nav-item').forEach(item => {
             item.addEventListener('click', () => switchView(item.dataset.view));
         });
 
@@ -3690,7 +4129,7 @@ body.drag-in-progress * {
         $('#add-category-btn').addEventListener('click', openAddCategory);
 
         // Type selector in modal
-        $$('.type-option').forEach(opt => {
+        $('.type-option').forEach(opt => {
             opt.addEventListener('click', () => setItemType(opt.dataset.type));
         });
 
@@ -3748,7 +4187,7 @@ body.drag-in-progress * {
         $('#move-modal-cancel').addEventListener('click', () => closeModal('#move-modal'));
 
         // Backdrop click
-        $$('.modal').forEach(modal => {
+        $('.modal').forEach(modal => {
             modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
         });
 
@@ -3796,9 +4235,9 @@ body.drag-in-progress * {
         });
 
         // Color picker
-        $$('.color-option').forEach(opt => {
+        $('.color-option').forEach(opt => {
             opt.addEventListener('click', () => {
-                $$('.color-option').forEach(o => o.classList.remove('selected'));
+                $('.color-option').forEach(o => o.classList.remove('selected'));
                 opt.classList.add('selected');
             });
         });
@@ -3819,7 +4258,7 @@ body.drag-in-progress * {
 
         // Keyboard
         document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') $$('.modal.active').forEach(m => m.classList.remove('active'));
+            if (e.key === 'Escape') $('.modal.active').forEach(m => m.classList.remove('active'));
             if ((e.ctrlKey||e.metaKey) && e.key === 'n') { e.preventDefault(); openAddModal(); }
         });
 
@@ -3828,6 +4267,8 @@ body.drag-in-progress * {
         const openSettings = () => {
             Sync.updateUI();
             updateNotifStatusUI();
+            GoogleCal.updateUI();
+            buildCalCategoryFilter();
             const cfgInput = $('#sync-config-input');
             const cfg = Sync.loadConfig();
             cfgInput.value = cfg ? JSON.stringify(cfg, null, 2) : '';
@@ -3912,6 +4353,62 @@ body.drag-in-progress * {
         // Notification enable button
         $('#notif-enable-btn') && $('#notif-enable-btn').addEventListener('click', enableNotifications);
 
+        // ===== Calendar Sync Handlers =====
+        // Save client ID on blur/input
+        $('#gcal-client-id') && $('#gcal-client-id').addEventListener('blur', () => {
+            const val = $('#gcal-client-id').value.trim();
+            if (val) GoogleCal.saveClientId(val);
+        });
+
+        // Google sign-in
+        $('#gcal-signin-btn') && $('#gcal-signin-btn').addEventListener('click', async () => {
+            const cidInput = $('#gcal-client-id');
+            if (cidInput && cidInput.value.trim()) GoogleCal.saveClientId(cidInput.value.trim());
+            const ok = await GoogleCal.signIn();
+            if (ok) {
+                const { filterCategoryIds, syncTasks, syncEvents } = getCalFilterSettings();
+                await GoogleCal.syncAll(filterCategoryIds, syncTasks, syncEvents);
+            }
+        });
+
+        // Manual sync
+        $('#gcal-sync-btn') && $('#gcal-sync-btn').addEventListener('click', async () => {
+            const { filterCategoryIds, syncTasks, syncEvents } = getCalFilterSettings();
+            await GoogleCal.syncAll(filterCategoryIds, syncTasks, syncEvents);
+        });
+
+        // Disconnect Google
+        $('#gcal-signout-btn') && $('#gcal-signout-btn').addEventListener('click', () => {
+            if (!confirm('Googleカレンダーとの接続を切断しますか？')) return;
+            GoogleCal.signOut();
+        });
+
+        // ICS export
+        $('#ics-export-btn') && $('#ics-export-btn').addEventListener('click', () => {
+            const { filterCategoryIds, syncTasks, syncEvents } = getCalFilterSettings();
+            exportICS(filterCategoryIds, syncTasks, syncEvents);
+        });
+
+        // Setup guide for Google Cloud Console
+        $('#gcal-setup-guide') && $('#gcal-setup-guide').addEventListener('click', e => {
+            e.preventDefault();
+            alert(
+                '【Google Cloud Console 設定手順】\n\n' +
+                '1. https://console.cloud.google.com/ を開く\n' +
+                '2. 新しいプロジェクトを作成（例: "taskflow"）\n' +
+                '3. 「APIとサービス」→「ライブラリ」→\n' +
+                '   「Google Calendar API」を有効化\n' +
+                '4. 「APIとサービス」→「認証情報」→\n' +
+                '   「認証情報を作成」→「OAuthクライアントID」\n' +
+                '5. アプリの種類: 「ウェブアプリケーション」\n' +
+                '6. 承認済みJavaScriptオリジン:\n' +
+                '   https://maeno8778-sudo.github.io\n' +
+                '   を追加\n' +
+                '7. 作成 → クライアントIDをコピー\n\n' +
+                '取得したクライアントIDを上の入力欄に貼り付けてください。'
+            );
+        });
+
         // Data export/import
         $('#data-export') && $('#data-export').addEventListener('click', () => {
             const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
@@ -3963,6 +4460,8 @@ body.drag-in-progress * {
 
     document.addEventListener('DOMContentLoaded', init);
 })();
-    </script>
+
+</script>
 </body>
 </html>
+
