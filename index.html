@@ -3914,14 +3914,22 @@ body.drag-in-progress * {
 
         taskToGEvent(task) {
             const cats = (task.categories || []).map(getCategoryById).filter(Boolean).map(c => c.name);
-            const start = task.scheduleDate
-                ? (task.time ? { dateTime: `${task.scheduleDate}T${task.time}:00`, timeZone: 'Asia/Tokyo' }
-                             : { date: task.scheduleDate })
-                : { date: today() };
-            const end = task.deadline
-                ? { date: task.deadline }
-                : (task.time ? { dateTime: `${task.scheduleDate}T${task.time}:00`, timeZone: 'Asia/Tokyo' }
-                             : { date: task.scheduleDate || today() });
+            const pad = n => String(n).padStart(2, '0');
+            let start, end;
+            if (task.time && task.scheduleDate) {
+                // Timed event: both start and end must be dateTime
+                start = { dateTime: `${task.scheduleDate}T${task.time}:00`, timeZone: 'Asia/Tokyo' };
+                const endDt = new Date(`${task.scheduleDate}T${task.time}:00`);
+                endDt.setHours(endDt.getHours() + 1);
+                end = { dateTime: `${endDt.getFullYear()}-${pad(endDt.getMonth()+1)}-${pad(endDt.getDate())}T${pad(endDt.getHours())}:${pad(endDt.getMinutes())}:00`, timeZone: 'Asia/Tokyo' };
+            } else {
+                // All-day: both start and end must be date; end must be after start (exclusive)
+                const startDate = task.scheduleDate || today();
+                const endDate = task.deadline && task.deadline >= startDate ? task.deadline : startDate;
+                const endExclusive = new Date(endDate); endExclusive.setDate(endExclusive.getDate() + 1);
+                start = { date: startDate };
+                end = { date: `${endExclusive.getFullYear()}-${pad(endExclusive.getMonth()+1)}-${pad(endExclusive.getDate())}` };
+            }
 
             const reminders = (task.alarm && task.alarm !== 'none' && task.time)
                 ? { useDefault: false, overrides: [{ method: 'popup', minutes: { ontime:0,'5min':5,'15min':15,'30min':30,'1hour':60,'1day':1440 }[task.alarm] || 0 }] }
